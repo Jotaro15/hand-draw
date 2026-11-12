@@ -18,6 +18,12 @@ and turns its movement into strokes on a small drawing app.
 - Smoothing of the strokes
 - Export of the drawing as a PNG image
 
+## Usage
+
+```bash
+python -m handdraw
+```
+
 ## Development setup
 
 Requires Python 3.10 to 3.12.
