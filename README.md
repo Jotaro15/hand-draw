@@ -1,5 +1,7 @@
 # hand-draw
 
+[![CI](https://github.com/Jotaro15/hand-draw/actions/workflows/ci.yml/badge.svg)](https://github.com/Jotaro15/hand-draw/actions/workflows/ci.yml)
+
 Draw in the air with your hand and a webcam.
 
 `hand-draw` tracks your hand through your camera, follows the finger you choose
