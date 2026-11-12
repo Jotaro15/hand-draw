@@ -16,6 +16,24 @@ and turns its movement into strokes on a small drawing app.
 - Smoothing of the strokes
 - Export of the drawing as a PNG image
 
+## Development setup
+
+Requires Python 3.10 to 3.12.
+
+```bash
+python -m venv .venv
+.venv\Scripts\activate        # Windows
+source .venv/bin/activate      # Linux / macOS
+pip install -e ".[dev]"
+```
+
+Run the tests and the linter:
+
+```bash
+pytest
+ruff check .
+```
+
 ## License
 
 Released under the [MIT License](LICENSE).
