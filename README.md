@@ -24,6 +24,9 @@ and turns its movement into strokes on a small drawing app.
 python -m handdraw
 ```
 
+The application opens the default camera and shows a live, mirrored view.
+If no camera can be opened, a message is displayed instead.
+
 ## Development setup
 
 Requires Python 3.10 to 3.12.
