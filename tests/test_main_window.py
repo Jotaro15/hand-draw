@@ -5,6 +5,7 @@ import pytest
 
 from handdraw.camera import CameraError
 from handdraw.ui.main_window import (
+    NO_CAMERA_TEXT,
     VIDEO_HEIGHT,
     VIDEO_WIDTH,
     WAITING_MESSAGE,
@@ -16,15 +17,22 @@ from handdraw.ui.main_window import (
 class FakeCamera:
     """Minimal stand-in for handdraw.camera.Camera."""
 
-    def __init__(self, frame=None, error=None, is_open=True):
+    def __init__(self, frame=None, error=None, is_open=True, index=0, switch_error=None):
         self.frame = frame
         self.error = error
         self.is_open = is_open
+        self.index = index
+        self.switch_error = switch_error
 
     def read(self):
         if self.error is not None:
             raise self.error
         return self.frame
+
+    def switch(self, index):
+        if self.switch_error is not None:
+            raise self.switch_error
+        self.index = index
 
 
 def make_frame(width=VIDEO_WIDTH, height=VIDEO_HEIGHT):
@@ -122,3 +130,91 @@ def test_update_frame_does_nothing_without_a_camera(make_window):
     window.update_frame()
 
     assert window.message == WAITING_MESSAGE
+
+
+def test_selector_is_disabled_when_no_camera_is_found(make_window):
+    window = make_window()
+
+    window.set_available_cameras([])
+
+    assert str(window.camera_selector["state"]) == "disabled"
+    assert window.camera_selector.get() == NO_CAMERA_TEXT
+
+
+def test_selector_lists_the_available_cameras(make_window):
+    window = make_window(FakeCamera(index=2))
+
+    window.set_available_cameras([0, 2])
+
+    assert list(window.camera_selector["values"]) == ["Camera 0", "Camera 2"]
+    assert str(window.camera_selector["state"]) == "readonly"
+    assert window.camera_selector.get() == "Camera 2"
+
+
+def test_select_camera_switches_the_camera(make_window):
+    camera = FakeCamera(index=0)
+    window = make_window(camera)
+    window.set_available_cameras([0, 1])
+
+    window.select_camera(1)
+
+    assert camera.index == 1
+    assert window.camera_selector.get() == "Camera 1"
+    assert window.status == ""
+
+
+def test_select_camera_reports_a_failure_and_keeps_the_current_camera(make_window):
+    camera = FakeCamera(index=0, switch_error=CameraError("Cannot open camera 1."))
+    window = make_window(camera)
+    window.set_available_cameras([0, 1])
+
+    window.select_camera(1)
+
+    assert camera.index == 0
+    assert window.camera_selector.get() == "Camera 0"
+    assert window.status == "Cannot open camera 1. Still using camera 0."
+
+
+def test_select_camera_failure_without_an_open_camera_only_shows_the_error(make_window):
+    camera = FakeCamera(
+        index=0, is_open=False, switch_error=CameraError("Cannot open camera 1.")
+    )
+    window = make_window(camera)
+    window.set_available_cameras([0, 1])
+
+    window.select_camera(1)
+
+    assert window.status == "Cannot open camera 1."
+
+
+def test_a_successful_switch_clears_the_previous_error(make_window):
+    camera = FakeCamera(index=0, switch_error=CameraError("Cannot open camera 1."))
+    window = make_window(camera)
+    window.set_available_cameras([0, 1])
+    window.select_camera(1)
+
+    camera.switch_error = None
+    window.select_camera(1)
+
+    assert camera.index == 1
+    assert window.status == ""
+
+
+def test_select_camera_does_nothing_without_a_camera(make_window):
+    window = make_window()
+
+    window.select_camera(1)
+
+    assert window.status == ""
+
+
+def test_choosing_an_item_in_the_list_switches_the_camera(make_window):
+    camera = FakeCamera(index=0)
+    window = make_window(camera)
+    window.set_available_cameras([0, 1])
+
+    window.camera_selector.current(1)
+    window.camera_selector.event_generate("<<ComboboxSelected>>")
+    window.root.update()
+
+    assert camera.index == 1
