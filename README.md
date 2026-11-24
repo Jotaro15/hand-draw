@@ -24,8 +24,11 @@ and turns its movement into strokes on a small drawing app.
 python -m handdraw
 ```
 
-The application opens the default camera and shows a live, mirrored view.
+The application opens the first camera it finds and shows a live, mirrored view.
+Use the drop-down list in the toolbar to switch to another camera.
 If no camera can be opened, a message is displayed instead.
+
+Cameras are detected when the application starts, so plug them in before launching it.
 
 ## Development setup
 
