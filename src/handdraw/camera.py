@@ -6,6 +6,7 @@ import cv2
 import numpy as np
 
 DEFAULT_CAMERA_INDEX = 0
+MAX_CAMERAS_TO_PROBE = 5
 FRAME_WIDTH = 640
 FRAME_HEIGHT = 480
 
@@ -34,13 +35,20 @@ class Camera:
         """Open the camera. Raise CameraError if it is not available."""
         if self.is_open:
             return
-        capture = cv2.VideoCapture(self.index, _get_backend())
-        if not capture.isOpened():
-            capture.release()
-            raise CameraError(f"Cannot open camera {self.index}.")
-        capture.set(cv2.CAP_PROP_FRAME_WIDTH, FRAME_WIDTH)
-        capture.set(cv2.CAP_PROP_FRAME_HEIGHT, FRAME_HEIGHT)
-        self._capture = capture
+        self._capture = _open_capture(self.index)
+
+    def switch(self, index: int) -> None:
+        """Use another camera.
+
+        If the new camera cannot be opened, CameraError is raised and the
+        current camera is left untouched.
+        """
+        if index == self.index and self.is_open:
+            return
+        new_capture = _open_capture(index)
+        self.release()
+        self.index = index
+        self._capture = new_capture
 
     def read(self) -> np.ndarray:
         """Return the next frame as a BGR image."""
@@ -58,6 +66,33 @@ class Camera:
         if self._capture is not None:
             self._capture.release()
             self._capture = None
+
+
+def list_available_cameras(max_cameras: int = MAX_CAMERAS_TO_PROBE) -> list[int]:
+    """Return the indexes of the cameras that can be opened.
+
+    OpenCV cannot list cameras with their names, so we simply try the first
+    indexes (0, 1, 2...) and keep the ones that work. Call this before opening
+    a camera: a camera that is already in use may not open a second time.
+    """
+    available = []
+    for index in range(max_cameras):
+        capture = cv2.VideoCapture(index, _get_backend())
+        if capture.isOpened():
+            available.append(index)
+        capture.release()
+    return available
+
+
+def _open_capture(index: int) -> cv2.VideoCapture:
+    """Open the camera with the given index. Raise CameraError if it is not available."""
+    capture = cv2.VideoCapture(index, _get_backend())
+    if not capture.isOpened():
+        capture.release()
+        raise CameraError(f"Cannot open camera {index}.")
+    capture.set(cv2.CAP_PROP_FRAME_WIDTH, FRAME_WIDTH)
+    capture.set(cv2.CAP_PROP_FRAME_HEIGHT, FRAME_HEIGHT)
+    return capture
 
 
 def _get_backend() -> int:

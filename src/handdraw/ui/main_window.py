@@ -14,6 +14,7 @@ VIDEO_WIDTH = FRAME_WIDTH
 VIDEO_HEIGHT = FRAME_HEIGHT
 REFRESH_DELAY_MS = 33  # about 30 frames per second
 WAITING_MESSAGE = "Waiting for the camera..."
+NO_CAMERA_TEXT = "No camera found"
 
 
 class MainWindow:
@@ -21,6 +22,7 @@ class MainWindow:
 
     def __init__(self, camera: Camera | None = None) -> None:
         self.camera = camera
+        self._camera_indexes: list[int] = []
 
         self.root = tk.Tk()
         self.root.title(WINDOW_TITLE)
@@ -29,6 +31,14 @@ class MainWindow:
 
         self.toolbar = ttk.Frame(self.root, padding=5)
         self.toolbar.pack(side=tk.TOP, fill=tk.X)
+
+        ttk.Label(self.toolbar, text="Camera:").pack(side=tk.LEFT)
+        self.camera_selector = ttk.Combobox(self.toolbar, width=16, state="disabled")
+        self.camera_selector.set(NO_CAMERA_TEXT)
+        self.camera_selector.pack(side=tk.LEFT, padx=5)
+        self.camera_selector.bind("<<ComboboxSelected>>", self._on_camera_selected)
+        self._status_label = ttk.Label(self.toolbar)
+        self._status_label.pack(side=tk.LEFT, padx=10)
 
         self.video_canvas = tk.Canvas(
             self.root,
@@ -58,6 +68,11 @@ class MainWindow:
         return self.video_canvas.itemcget(self._text_item, "text")
 
     @property
+    def status(self) -> str:
+        """Text currently displayed in the toolbar status area."""
+        return str(self._status_label.cget("text"))
+
+    @property
     def is_showing_frame(self) -> bool:
         return self._photo is not None
 
@@ -72,6 +87,41 @@ class MainWindow:
             self.root.after_cancel(self._refresh_job)
             self._refresh_job = None
         self.root.destroy()
+
+    def set_status(self, text: str) -> None:
+        """Display a short text in the toolbar, for example an error."""
+        self._status_label.configure(text=text)
+
+    def set_available_cameras(self, indexes: list[int]) -> None:
+        """Fill the camera drop-down list with the given camera indexes."""
+        self._camera_indexes = list(indexes)
+        if not indexes:
+            self.camera_selector["values"] = ()
+            self.camera_selector.set(NO_CAMERA_TEXT)
+            self.camera_selector.configure(state="disabled")
+            return
+        self.camera_selector["values"] = [f"Camera {index}" for index in indexes]
+        self.camera_selector.configure(state="readonly")
+        self._select_current_camera()
+
+    def select_camera(self, index: int) -> None:
+        """Switch to the camera with the given index.
+
+        If it cannot be opened, the current camera is kept and an error is
+        displayed in the toolbar.
+        """
+        if self.camera is None:
+            return
+        try:
+            self.camera.switch(index)
+        except CameraError as error:
+            if self.camera.is_open:
+                self.set_status(f"{error} Still using camera {self.camera.index}.")
+            else:
+                self.set_status(str(error))
+        else:
+            self.set_status("")
+        self._select_current_camera()
 
     def show_message(self, text: str) -> None:
         """Hide the video and display a text message instead."""
@@ -99,6 +149,18 @@ class MainWindow:
             self.show_message(str(error))
         else:
             self.show_frame(frame)
+
+    def _select_current_camera(self) -> None:
+        """Make the drop-down list show the camera that is really in use."""
+        if self.camera is not None and self.camera.index in self._camera_indexes:
+            self.camera_selector.current(self._camera_indexes.index(self.camera.index))
+        else:
+            self.camera_selector.set("")
+
+    def _on_camera_selected(self, _event: tk.Event) -> None:
+        position = self.camera_selector.current()
+        if position >= 0:
+            self.select_camera(self._camera_indexes[position])
 
     def _refresh(self) -> None:
         """Called every REFRESH_DELAY_MS to show the latest camera frame."""
