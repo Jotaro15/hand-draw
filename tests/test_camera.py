@@ -3,7 +3,13 @@ import numpy as np
 import pytest
 
 from handdraw import camera as camera_module
-from handdraw.camera import FRAME_HEIGHT, FRAME_WIDTH, Camera, CameraError
+from handdraw.camera import (
+    FRAME_HEIGHT,
+    FRAME_WIDTH,
+    Camera,
+    CameraError,
+    list_available_cameras,
+)
 
 
 class FakeCapture:
@@ -45,6 +51,21 @@ def use_fake_capture(monkeypatch, capture):
     def fake_video_capture(index, backend):
         calls.append((index, backend))
         return capture
+
+    monkeypatch.setattr(camera_module.cv2, "VideoCapture", fake_video_capture)
+    return calls
+
+
+def use_fake_cameras(monkeypatch, captures):
+    """Make OpenCV see one fake capture per index. Unknown indexes cannot be opened.
+
+    Return the list of the indexes that were requested.
+    """
+    calls = []
+
+    def fake_video_capture(index, backend):
+        calls.append(index)
+        return captures.get(index, FakeCapture(opened=False))
 
     monkeypatch.setattr(camera_module.cv2, "VideoCapture", fake_video_capture)
     return calls
@@ -145,3 +166,81 @@ def test_release_closes_the_camera(monkeypatch):
 
     assert capture.released
     assert not camera.is_open
+
+
+def test_list_available_cameras_returns_the_cameras_that_open(monkeypatch):
+    use_fake_cameras(monkeypatch, {0: FakeCapture(), 2: FakeCapture()})
+
+    assert list_available_cameras(max_cameras=4) == [0, 2]
+
+
+def test_list_available_cameras_is_empty_without_camera(monkeypatch):
+    use_fake_cameras(monkeypatch, {})
+
+    assert list_available_cameras() == []
+
+
+def test_list_available_cameras_probes_the_first_indexes(monkeypatch):
+    calls = use_fake_cameras(monkeypatch, {})
+
+    list_available_cameras(max_cameras=3)
+
+    assert calls == [0, 1, 2]
+
+
+def test_list_available_cameras_releases_every_camera_it_probes(monkeypatch):
+    captures = {0: FakeCapture(), 1: FakeCapture()}
+    use_fake_cameras(monkeypatch, captures)
+
+    list_available_cameras(max_cameras=3)
+
+    assert all(capture.released for capture in captures.values())
+
+
+def test_switch_uses_the_new_camera(monkeypatch):
+    first = FakeCapture(frame=make_frame())
+    second = FakeCapture(frame=make_frame())
+    use_fake_cameras(monkeypatch, {0: first, 1: second})
+    camera = Camera(index=0)
+    camera.open()
+
+    camera.switch(1)
+
+    assert camera.index == 1
+    assert camera.is_open
+    assert first.released
+    assert not second.released
+
+
+def test_switch_keeps_the_current_camera_when_the_new_one_fails(monkeypatch):
+    first = FakeCapture(frame=make_frame())
+    use_fake_cameras(monkeypatch, {0: first})
+    camera = Camera(index=0)
+    camera.open()
+
+    with pytest.raises(CameraError):
+        camera.switch(3)
+
+    assert camera.index == 0
+    assert camera.is_open
+    assert not first.released
+
+
+def test_switch_works_when_no_camera_was_open(monkeypatch):
+    use_fake_cameras(monkeypatch, {1: FakeCapture()})
+    camera = Camera(index=0)
+
+    camera.switch(1)
+
+    assert camera.index == 1
+    assert camera.is_open
+
+
+def test_switch_to_the_current_camera_does_not_reopen_it(monkeypatch):
+    calls = use_fake_cameras(monkeypatch, {0: FakeCapture()})
+    camera = Camera(index=0)
+    camera.open()
+
+    camera.switch(0)
+
+    assert calls == [0]
