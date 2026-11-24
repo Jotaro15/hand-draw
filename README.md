@@ -30,6 +30,13 @@ If no camera can be opened, a message is displayed instead.
 
 Cameras are detected when the application starts, so plug them in before launching it.
 
+When a hand is visible, its 21 landmarks are drawn on the video. The first launch
+downloads the MediaPipe hand landmark model (a few megabytes), so an internet
+connection is needed once. The model is stored in `src/handdraw/models/` and is not
+committed to the repository. If the download fails, the application still shows the
+camera, and you can download the `hand_landmarker.task` file yourself (the link is
+printed in the terminal) and save it in that folder.
+
 ## Development setup
 
 Requires Python 3.10 to 3.12.

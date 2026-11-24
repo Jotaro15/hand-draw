@@ -4,8 +4,11 @@ import numpy as np
 import pytest
 
 from handdraw.camera import CameraError
+from handdraw.hand_tracker import LANDMARK_COUNT, Landmark
 from handdraw.ui.main_window import (
     NO_CAMERA_TEXT,
+    TRACKING_OFF_TEXT,
+    TRACKING_ON_TEXT,
     VIDEO_HEIGHT,
     VIDEO_WIDTH,
     WAITING_MESSAGE,
@@ -35,6 +38,18 @@ class FakeCamera:
         self.index = index
 
 
+class FakeTracker:
+    """Minimal stand-in for handdraw.hand_tracker.HandTracker."""
+
+    def __init__(self, landmarks=None):
+        self.landmarks = landmarks
+        self.frames = []
+
+    def detect(self, frame):
+        self.frames.append(frame)
+        return self.landmarks
+
+
 def make_frame(width=VIDEO_WIDTH, height=VIDEO_HEIGHT):
     return np.zeros((height, width, 3), dtype=np.uint8)
 
@@ -43,9 +58,9 @@ def make_frame(width=VIDEO_WIDTH, height=VIDEO_HEIGHT):
 def make_window():
     windows = []
 
-    def factory(camera=None):
+    def factory(camera=None, hand_tracker=None):
         try:
-            window = MainWindow(camera)
+            window = MainWindow(camera, hand_tracker)
         except tk.TclError:
             pytest.skip("no display available")
         windows.append(window)
@@ -218,3 +233,43 @@ def test_choosing_an_item_in_the_list_switches_the_camera(make_window):
     window.root.update()
 
     assert camera.index == 1
+
+
+def test_tracking_status_is_off_without_a_tracker(make_window):
+    assert make_window().tracking_status == TRACKING_OFF_TEXT
+
+
+def test_tracking_status_is_on_with_a_tracker(make_window):
+    assert make_window(hand_tracker=FakeTracker()).tracking_status == TRACKING_ON_TEXT
+
+
+def test_update_frame_draws_the_detected_hand(make_window):
+    frame = make_frame()
+    tracker = FakeTracker(landmarks=[Landmark(0.5, 0.5)] * LANDMARK_COUNT)
+    window = make_window(FakeCamera(frame=frame), tracker)
+
+    window.update_frame()
+
+    assert window.is_showing_frame
+    assert tracker.frames == [frame]
+    assert frame.any()  # something was drawn on the black frame
+
+
+def test_update_frame_draws_nothing_when_no_hand_is_found(make_window):
+    frame = make_frame()
+    window = make_window(FakeCamera(frame=frame), FakeTracker(landmarks=None))
+
+    window.update_frame()
+
+    assert window.is_showing_frame
+    assert not frame.any()
+
+
+def test_update_frame_draws_nothing_without_a_tracker(make_window):
+    frame = make_frame()
+    window = make_window(FakeCamera(frame=frame))
+
+    window.update_frame()
+
+    assert window.is_showing_frame
+    assert not frame.any()

@@ -8,6 +8,8 @@ import numpy as np
 from PIL import Image, ImageTk
 
 from handdraw.camera import FRAME_HEIGHT, FRAME_WIDTH, Camera, CameraError
+from handdraw.hand_overlay import draw_hand
+from handdraw.hand_tracker import HandTracker
 
 WINDOW_TITLE = "hand-draw"
 VIDEO_WIDTH = FRAME_WIDTH
@@ -15,13 +17,20 @@ VIDEO_HEIGHT = FRAME_HEIGHT
 REFRESH_DELAY_MS = 33  # about 30 frames per second
 WAITING_MESSAGE = "Waiting for the camera..."
 NO_CAMERA_TEXT = "No camera found"
+TRACKING_ON_TEXT = "Hand tracking: on"
+TRACKING_OFF_TEXT = "Hand tracking: off"
 
 
 class MainWindow:
     """Top-level window with a toolbar on top and the video area below."""
 
-    def __init__(self, camera: Camera | None = None) -> None:
+    def __init__(
+        self,
+        camera: Camera | None = None,
+        hand_tracker: HandTracker | None = None,
+    ) -> None:
         self.camera = camera
+        self.hand_tracker = hand_tracker
         self._camera_indexes: list[int] = []
 
         self.root = tk.Tk()
@@ -39,6 +48,9 @@ class MainWindow:
         self.camera_selector.bind("<<ComboboxSelected>>", self._on_camera_selected)
         self._status_label = ttk.Label(self.toolbar)
         self._status_label.pack(side=tk.LEFT, padx=10)
+        tracking_text = TRACKING_ON_TEXT if hand_tracker is not None else TRACKING_OFF_TEXT
+        self._tracking_label = ttk.Label(self.toolbar, text=tracking_text)
+        self._tracking_label.pack(side=tk.RIGHT)
 
         self.video_canvas = tk.Canvas(
             self.root,
@@ -71,6 +83,11 @@ class MainWindow:
     def status(self) -> str:
         """Text currently displayed in the toolbar status area."""
         return str(self._status_label.cget("text"))
+
+    @property
+    def tracking_status(self) -> str:
+        """Text telling whether hand tracking is on, displayed in the toolbar."""
+        return str(self._tracking_label.cget("text"))
 
     @property
     def is_showing_frame(self) -> bool:
@@ -148,7 +165,16 @@ class MainWindow:
         except CameraError as error:
             self.show_message(str(error))
         else:
+            self._draw_hand(frame)
             self.show_frame(frame)
+
+    def _draw_hand(self, frame: np.ndarray) -> None:
+        """Find the hand in the frame and draw its landmarks on it."""
+        if self.hand_tracker is None:
+            return
+        landmarks = self.hand_tracker.detect(frame)
+        if landmarks is not None:
+            draw_hand(frame, landmarks)
 
     def _select_current_camera(self) -> None:
         """Make the drop-down list show the camera that is really in use."""
