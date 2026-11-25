@@ -1,6 +1,13 @@
 import numpy as np
 
-from handdraw.hand_overlay import HAND_CONNECTIONS, LINE_COLOR, POINT_COLOR, draw_hand
+from handdraw.hand_overlay import (
+    HAND_CONNECTIONS,
+    HIGHLIGHT_COLOR,
+    HIGHLIGHT_RADIUS,
+    LINE_COLOR,
+    POINT_COLOR,
+    draw_hand,
+)
 from handdraw.hand_tracker import LANDMARK_COUNT, Landmark
 
 
@@ -43,3 +50,23 @@ def test_draw_hand_scales_the_points_to_the_frame_size():
     draw_hand(frame, make_landmarks(0.5, 0.5))
 
     assert frame[25, 100].tolist() == list(POINT_COLOR)
+
+
+def test_draw_hand_circles_the_highlighted_landmark():
+    frame = np.zeros((100, 100, 3), dtype=np.uint8)
+    landmarks = make_landmarks(0.1, 0.1)
+    landmarks[8] = Landmark(0.5, 0.5)
+
+    draw_hand(frame, landmarks, highlighted_index=8)
+
+    assert frame[50, 50 + HIGHLIGHT_RADIUS].tolist() == list(HIGHLIGHT_COLOR)
+
+
+def test_draw_hand_has_no_circle_when_nothing_is_highlighted():
+    frame = np.zeros((100, 100, 3), dtype=np.uint8)
+    landmarks = make_landmarks(0.1, 0.1)
+    landmarks[8] = Landmark(0.5, 0.5)
+
+    draw_hand(frame, landmarks)
+
+    assert frame[50, 50 + HIGHLIGHT_RADIUS].tolist() == [0, 0, 0]
