@@ -18,13 +18,27 @@ LINE_COLOR = (0, 255, 0)  # green (BGR)
 POINT_COLOR = (0, 0, 255)  # red (BGR)
 LINE_THICKNESS = 2
 POINT_RADIUS = 4
+HIGHLIGHT_COLOR = (0, 255, 255)  # yellow (BGR)
+HIGHLIGHT_RADIUS = 10
 
 
-def draw_hand(frame: np.ndarray, landmarks: list[Landmark]) -> None:
-    """Draw the landmarks and the lines between them on the frame (in place)."""
+def draw_hand(
+    frame: np.ndarray,
+    landmarks: list[Landmark],
+    highlighted_index: int | None = None,
+) -> None:
+    """Draw the landmarks and the lines between them on the frame (in place).
+
+    The landmark at highlighted_index, for example the tip of the chosen finger,
+    gets a yellow circle around it.
+    """
     height, width = frame.shape[:2]
     points = [(int(landmark.x * width), int(landmark.y * height)) for landmark in landmarks]
     for start, end in HAND_CONNECTIONS:
         cv2.line(frame, points[start], points[end], LINE_COLOR, LINE_THICKNESS)
     for point in points:
         cv2.circle(frame, point, POINT_RADIUS, POINT_COLOR, -1)
+    if highlighted_index is not None:
+        cv2.circle(
+            frame, points[highlighted_index], HIGHLIGHT_RADIUS, HIGHLIGHT_COLOR, LINE_THICKNESS
+        )
