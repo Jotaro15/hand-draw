@@ -37,6 +37,9 @@ committed to the repository. If the download fails, the application still shows 
 camera, and you can download the `hand_landmarker.task` file yourself (the link is
 printed in the terminal) and save it in that folder.
 
+The Finger drop-down in the toolbar chooses which finger will draw (the index finger
+by default). Its tip is marked with a yellow circle on the video.
+
 ## Development setup
 
 Requires Python 3.10 to 3.12.
