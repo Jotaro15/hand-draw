@@ -4,6 +4,8 @@ import numpy as np
 import pytest
 
 from handdraw.camera import CameraError
+from handdraw.fingers import Finger
+from handdraw.hand_overlay import HIGHLIGHT_COLOR, HIGHLIGHT_RADIUS
 from handdraw.hand_tracker import LANDMARK_COUNT, Landmark
 from handdraw.ui.main_window import (
     NO_CAMERA_TEXT,
@@ -273,3 +275,53 @@ def test_update_frame_draws_nothing_without_a_tracker(make_window):
 
     assert window.is_showing_frame
     assert not frame.any()
+
+
+def test_the_index_finger_is_selected_by_default(make_window):
+    window = make_window()
+
+    assert window.selected_finger is Finger.INDEX
+    assert window.finger_selector.get() == "Index"
+
+
+def test_finger_selector_lists_the_five_fingers(make_window):
+    window = make_window()
+
+    labels = list(window.finger_selector["values"])
+
+    assert labels == ["Thumb", "Index", "Middle", "Ring", "Little"]
+
+
+def test_select_finger_updates_the_selector(make_window):
+    window = make_window()
+
+    window.select_finger(Finger.THUMB)
+
+    assert window.selected_finger is Finger.THUMB
+    assert window.finger_selector.get() == "Thumb"
+
+
+def test_choosing_a_finger_in_the_list_selects_it(make_window):
+    window = make_window()
+
+    window.finger_selector.current(4)
+    window.finger_selector.event_generate("<<ComboboxSelected>>")
+    window.root.update()
+
+    assert window.selected_finger is Finger.LITTLE
+
+
+def test_update_frame_circles_the_tip_of_the_selected_finger(make_window):
+    frame = make_frame()
+    landmarks = [Landmark(0.1, 0.1)] * LANDMARK_COUNT
+    landmarks[4] = Landmark(0.25, 0.5)  # tip of the thumb
+    landmarks[12] = Landmark(0.75, 0.5)  # tip of the middle finger
+    window = make_window(FakeCamera(frame=frame), FakeTracker(landmarks))
+    window.select_finger(Finger.MIDDLE)
+
+    window.update_frame()
+
+    middle_circle = frame[240, 480 + HIGHLIGHT_RADIUS]  # x = 0.75 * 640, y = 0.5 * 480
+    thumb_circle = frame[240, 160 + HIGHLIGHT_RADIUS]  # x = 0.25 * 640, y = 0.5 * 480
+    assert middle_circle.tolist() == list(HIGHLIGHT_COLOR)
+    assert thumb_circle.tolist() == [0, 0, 0]

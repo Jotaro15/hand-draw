@@ -8,6 +8,7 @@ import numpy as np
 from PIL import Image, ImageTk
 
 from handdraw.camera import FRAME_HEIGHT, FRAME_WIDTH, Camera, CameraError
+from handdraw.fingers import DEFAULT_FINGER, Finger
 from handdraw.hand_overlay import draw_hand
 from handdraw.hand_tracker import HandTracker
 
@@ -32,6 +33,7 @@ class MainWindow:
         self.camera = camera
         self.hand_tracker = hand_tracker
         self._camera_indexes: list[int] = []
+        self.selected_finger = DEFAULT_FINGER
 
         self.root = tk.Tk()
         self.root.title(WINDOW_TITLE)
@@ -46,8 +48,16 @@ class MainWindow:
         self.camera_selector.set(NO_CAMERA_TEXT)
         self.camera_selector.pack(side=tk.LEFT, padx=5)
         self.camera_selector.bind("<<ComboboxSelected>>", self._on_camera_selected)
-        self._status_label = ttk.Label(self.toolbar)
-        self._status_label.pack(side=tk.LEFT, padx=10)
+        ttk.Label(self.toolbar, text="Finger:").pack(side=tk.LEFT, padx=(10, 0))
+        self.finger_selector = ttk.Combobox(
+            self.toolbar,
+            width=10,
+            state="readonly",
+            values=[finger.label for finger in Finger],
+        )
+        self.finger_selector.current(list(Finger).index(self.selected_finger))
+        self.finger_selector.pack(side=tk.LEFT, padx=5)
+        self.finger_selector.bind("<<ComboboxSelected>>", self._on_finger_selected)
         tracking_text = TRACKING_ON_TEXT if hand_tracker is not None else TRACKING_OFF_TEXT
         self._tracking_label = ttk.Label(self.toolbar, text=tracking_text)
         self._tracking_label.pack(side=tk.RIGHT)
@@ -60,6 +70,12 @@ class MainWindow:
             highlightthickness=0,
         )
         self.video_canvas.pack(side=tk.TOP)
+
+        self.status_bar = ttk.Frame(self.root, padding=(5, 2))
+        self.status_bar.pack(side=tk.TOP, fill=tk.X)
+        self._status_label = ttk.Label(self.status_bar)
+        self._status_label.pack(side=tk.LEFT)
+
         self._image_item = self.video_canvas.create_image(0, 0, anchor=tk.NW)
         self._text_item = self.video_canvas.create_text(
             VIDEO_WIDTH // 2,
@@ -140,6 +156,11 @@ class MainWindow:
             self.set_status("")
         self._select_current_camera()
 
+    def select_finger(self, finger: Finger) -> None:
+        """Choose the finger that will draw."""
+        self.selected_finger = finger
+        self.finger_selector.current(list(Finger).index(finger))
+
     def show_message(self, text: str) -> None:
         """Hide the video and display a text message instead."""
         self._photo = None
@@ -174,7 +195,7 @@ class MainWindow:
             return
         landmarks = self.hand_tracker.detect(frame)
         if landmarks is not None:
-            draw_hand(frame, landmarks)
+            draw_hand(frame, landmarks, self.selected_finger.tip_index)
 
     def _select_current_camera(self) -> None:
         """Make the drop-down list show the camera that is really in use."""
@@ -187,6 +208,9 @@ class MainWindow:
         position = self.camera_selector.current()
         if position >= 0:
             self.select_camera(self._camera_indexes[position])
+
+    def _on_finger_selected(self, _event: tk.Event) -> None:
+        self.select_finger(list(Finger)[self.finger_selector.current()])
 
     def _refresh(self) -> None:
         """Called every REFRESH_DELAY_MS to show the latest camera frame."""
